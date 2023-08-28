@@ -1,0 +1,28 @@
+#!/bin/bash
+# Author            : Hongbo Liu <lhbf@qq.com>
+# Date              : 2023-08-28 16:16
+
+local_public_path="$HOME/github/public"
+
+publish_all() {
+  git add .
+  git commit -m "Publish file '${src_file##*/}' to '$dest_dir' "
+
+  for remote in $(git remote) ; do
+    git push "$remote"
+  done
+}
+
+main() {
+  local src_file="$1"
+  local dest_dir="${2:-.}"
+
+  cd "$local_public_path"
+
+  mkdir -p "$local_public_path/$dest_dir"
+  cp -f $src_file "$local_public_path/$dest_dir"
+
+  publish_all
+}
+
+main "$@"
