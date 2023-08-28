@@ -1,0 +1,37 @@
+#!/bin/bash
+# Author            : Hongbo Liu <lhbf@qq.com>
+# Date              : 2023-08-11 14:50
+# Description: Run the command once after specific time interval seconds
+
+HISTORY_DIR="/tmp/run-once-history"
+
+should_run() {
+  local hist_file="$1"
+  local interval="$2"
+  if [[ ! -f "$hist_file" ]]; then
+    return 0
+  fi
+
+  local now=$(date +%s)
+  local file_modify_time=$(date -r "$hist_file" +%s)
+  local delta=$((now - file_modify_time))
+
+  [[ $delta -ge $interval ]]
+}
+
+main() {
+  mkdir -p "$HISTORY_DIR"
+  local command="$1"
+  local interval="${2:-3600}"
+
+  local cmd_md5=$(echo "$command" | md5sum -z | cut -d' ' -f1)
+  local hist_file="$HISTORY_DIR/$cmd_md5"
+
+  if should_run "$hist_file" "$interval"; then
+    touch $hist_file
+    $SHELL -c "$command"
+  fi
+}
+
+main "$@"
+
