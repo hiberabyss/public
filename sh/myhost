@@ -1,0 +1,126 @@
+#!/bin/bash
+# Author            : Hongbo Liu <lhbf@qq.com>
+# Date              : 2023-08-26 23:39
+
+is_osx () {
+  [[ "$OSTYPE" =~ ^darwin ]] || return 1
+}
+
+is_valid_item() {
+  local item="$1"
+
+  # filter empty line
+  if [[ "$item" =~ ^[[:space:]]*$ ]]; then
+    return 1
+  fi
+
+  # filter comment line
+  if [[ "$item" =~ ^[[:space:]]*# ]]; then
+    return 1
+  fi
+
+  return 0
+}
+
+add_os_hosts_item() {
+  local item="$1"
+  local sys_hosts="/etc/hosts"
+
+  if ! is_valid_item "$item"; then
+    return 0
+  fi
+
+  if grep -q "$item" "$sys_hosts"; then
+    return 0
+  fi
+
+  SED="sed"
+  if is_osx; then
+    SED="gsed"
+  fi
+
+  local item_host=$(echo $item | awk '{print $2}')
+  if grep -q "$item_host" "$sys_hosts"; then
+    sudo $SED -i "/$item_host/d" "$sys_hosts"
+    echo "Update host with: '$item'"
+  else
+    echo "Add item: '$item'"
+  fi
+
+  sudo echo "$item" >> $sys_hosts
+}
+
+docker_add_host_args() {
+  local host_args
+  while read line; do
+    if is_valid_item "$line"; then
+      item=$(echo "$line" | awk -v OFS=':' '{print $2,$1}')
+      host_args+=" --add-host=$item"
+    fi
+  done < "$myhosts_file"
+
+  echo -n $host_args
+}
+
+remote_run() {
+  set -e
+  if [[ -z "$remote" ]]; then
+    return 0
+  fi
+
+  local remote_dir="/tmp/myhost"
+  ssh "$remote" -- mkdir -p "$remote_dir"
+  scp "$myhosts_file" "$remote:$remote_dir"
+  scp "$0" "$remote:$remote_dir"
+
+  local remote_cmd=${0##*/}
+  local remote_hosts_conf=${myhosts_file##*/}
+
+  ssh "$remote" "cd $remote_dir && sudo ./$remote_cmd $remote_hosts_conf"
+}
+
+usage() {
+cat << EOF
+Usage: $(basename $0) path/to/hosts.conf
+
+Examples:
+  myhost	# Update "/etc/hosts" base on "~/.config/myhosts.conf"
+  myhost /tmp/myhosts.conf
+  myhost docker # Generate docker add-host arguments
+  remote=dev myhost # Update remote machine "/etc/hosts"
+  
+EOF
+exit 0
+}
+
+update_os_hosts() {
+  if [[ -n "$remote" ]]; then
+    remote_run
+    return 0
+  fi
+
+  while read line; do
+    add_os_hosts_item "$line"
+  done < "$myhosts_file"
+}
+
+main() {
+  local subcmd="$1"
+  myhosts_file="$HOME/.config/myhosts.conf"
+
+  case $subcmd in
+    docker)
+      myhosts_file=${2:-$myhosts_file}
+    docker_add_host_args
+      ;;
+    -h|--help|help)
+      usage
+      ;;
+    *)
+      myhosts_file=${subcmd:-$myhosts_file}
+      update_os_hosts
+      ;;
+  esac
+}
+
+main "$@"
