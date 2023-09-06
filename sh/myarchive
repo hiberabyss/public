@@ -1,0 +1,43 @@
+#!/bin/bash
+# Author            : Hongbo Liu <lhbf@qq.com>
+# Date              : 2023-09-05 14:41
+
+set -e
+
+BACKUP_DIR=".backup"
+ARCHIVE_FILE="archive.tar"
+
+# Will exit if already archived
+check_is_archived() {
+  local input="$1"
+  if [[ ! -f "$ARCHIVE_FILE" ]]; then
+    return 0
+  fi
+
+  if tar tf $ARCHIVE_FILE | tr -d '/' | grep -q "^$input$"; then
+    echo "ERROR: $input is already archived"
+    exit 1
+  fi
+}
+
+do_archive() {
+  local input="$1"
+
+  echo "Archive $input:"
+  echo "--------------------------------------------------"
+  tar rvf $ARCHIVE_FILE "$input"
+  echo "Move $input into $BACKUP_DIR"
+  mv "$input" $BACKUP_DIR
+  echo "--------------------------------------------------"
+}
+
+main() {
+  mkdir -p $BACKUP_DIR
+
+  for input in $* ; do
+    check_is_archived "$input"
+    do_archive "$input"
+  done
+}
+
+main "$@"
