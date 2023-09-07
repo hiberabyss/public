@@ -34,7 +34,7 @@ do_archive() {
 main() {
   mkdir -p $BACKUP_DIR
 
-  for input in $* ; do
+  for input in "$@" ; do
     check_is_archived "$input"
     do_archive "$input"
   done
